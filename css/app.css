@@ -1,0 +1,26 @@
+html, body, .map {
+     height: 100%;
+     width: 100%;
+     padding: 0px;
+     margin: 0px;
+ }
+
+ .oplot-tool-wrapper{
+     position: absolute;
+     top: 50px;
+     right: 50px;
+     padding: 3px;
+     border: 1px solid #ccc;
+     background-color: #fff;
+ }
+
+.oplot-tool-wrapper a {
+    height: 30px;
+    background-color: #fff;
+    color: #000;
+    border: 1px solid #ddd;
+    text-align: center;
+    cursor: pointer;
+    line-height: 30px;
+    padding: 3px 10px;
+ }
