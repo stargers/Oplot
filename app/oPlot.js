@@ -37,6 +37,9 @@
         curve: {
             t: 0.3
         },
+        closedcurve: {
+            t: 0.3
+        },
         straightarrow: {
             fixPointCount : 2,
             maxArrowLength : 3000000,
@@ -49,6 +52,23 @@
             headAngle: Math.PI / 8.5,
             neckAngle: Math.PI / 13,
             fixPointCount: 2
+        },
+        attackarrow: {
+            headHeightFactor: 0.18,
+            headWidthFactor: 0.3,
+            neckHeightFactor: 0.85,
+            neckWidthFactor: 0.15,
+            headTailFactor: 0.8,
+        },
+        tailedattackarrow: {
+            headHeightFactor: 0.18,
+            headWidthFactor: 0.3,
+            neckHeightFactor: 0.85,
+            neckWidthFactor: 0.15,
+            tailWidthFactor: 0.1,
+            headTailFactor: 0.8,
+            swallowTailFactor: 1,
+            swallowTailPnt: null,
         }
     }
 
@@ -81,6 +101,12 @@
             originType: 'LineString',
             geometryFn: curveDrawFn,
         },
+        //闭合曲线
+        closedcurve: {
+            className: 'ClosedCurve',
+            originType: 'Polygon',
+            geometryFn: closedcurveDrawFn
+        },
         // 自由面
         polygon: {
             className: 'Polygon',
@@ -110,10 +136,18 @@
             originType: 'LineString',
             geometryFn: finearrowDrawFn
         },
+        // 面状三点平单箭头
         attackarrow: {
             className: 'AttackArrow',
             originType: 'LineString',
             geometryFn: attackarrowDrawFn
+        },
+        // 面状三点尖单箭头
+        tailedattackarrow: {
+            className: 'tailedAttackArrow',
+            originType: 'LineString',
+            geometryFn: tailedAttackArrowDrawFn
+            
         }
     }
 
@@ -177,17 +211,20 @@
         this.state.source.clear();
     }
 
-    // 导出标绘features
+    // 导出标绘features 为KML
     P.prototype.saveAs = function () {
         var KMLFormat = new ol.format.KML();
-
         var features = this.state.source.getFeatures();
-
         var formatData = KMLFormat.writeFeatures(features);
+        var file = new Blob([formatData], {
+            type: 'text/plain'
+        });
+        var url = URL.createObjectURL(file);
 
-        document.execCommand('SaveAs');
-
-        console.log(formatData);
+        var a = document.createElement('a');
+        a.download = 'plot.kml';
+        a.href = url;
+        a.click()
     }
 
 
@@ -391,19 +428,27 @@
         }
     }
 
-    //TODO
+    
+    /**
+     * 面状三点平单箭头 绘制函数
+     * 
+     * @param {any} coordinates 
+     * @param {any} geometry 
+     * @returns 
+     */
     function attackarrowDrawFn(coordinates, geometry) {
         if (!geometry) {
             geometry = new ol.geom.Polygon(null);
         }
         var count = coordinates.length;
+        console.log(count);
 
         if (count == 1) {
-            geometry.setCoordinates(coordinates);
+            geometry.setCoordinates([coordinates]);
             return geometry;
         }
         if (count == 2) {
-            geometry.setCoordinates(coordinates);
+            geometry.setCoordinates([coordinates]);
             return geometry;
         }else if(count == 3){
             // 计算箭尾
@@ -416,7 +461,7 @@
             var midTail = PlotUtils.mid(tailLeft, tailRight);
             var bonePnts = [midTail].concat(coordinates.slice(2));
             // 计算箭头
-            var headPnts = this.getArrowHeadPoints(bonePnts, tailLeft, tailRight);
+            var headPnts = getArrowHeadPoints(bonePnts, tailLeft, tailRight);
             var neckLeft = headPnts[0];
             var neckRight = headPnts[4];
             var tailWidthFactor = PlotUtils.distance(tailLeft, tailRight) / PlotUtils.getBaseLength(bonePnts);
@@ -439,6 +484,28 @@
         }
     }
 
+    function getArrowHeadPoints(points, tailLeft, tailRight){
+        var len = PlotUtils.getBaseLength(points);
+        var headHeight = len * ShapeConstants.attackarrow.headHeightFactor;
+        var headPnt = points[points.length - 1];
+        len = PlotUtils.distance(headPnt, points[points.length - 2]);
+        var tailWidth = PlotUtils.distance(tailLeft, tailRight);
+        if (headHeight > tailWidth * ShapeConstants.attackarrow.headTailFactor) {
+            headHeight = tailWidth * ShapeConstants.attackarrow.headTailFactor;
+        }
+        var headWidth = headHeight * ShapeConstants.attackarrow.headWidthFactor;
+        var neckWidth = headHeight * ShapeConstants.attackarrow.neckWidthFactor;
+        headHeight = headHeight > len ? len : headHeight;
+        var neckHeight = headHeight * ShapeConstants.attackarrow.neckHeightFactor;
+        var headEndPnt = PlotUtils.getThirdPoint(points[points.length - 2], headPnt, 0, headHeight, true);
+        var neckEndPnt = PlotUtils.getThirdPoint(points[points.length - 2], headPnt, 0, neckHeight, true);
+        var headLeft = PlotUtils.getThirdPoint(headPnt, headEndPnt, Constants.HALF_PI, headWidth, false);
+        var headRight = PlotUtils.getThirdPoint(headPnt, headEndPnt, Constants.HALF_PI, headWidth, true);
+        var neckLeft = PlotUtils.getThirdPoint(headPnt, neckEndPnt, Constants.HALF_PI, neckWidth, false);
+        var neckRight = PlotUtils.getThirdPoint(headPnt, neckEndPnt, Constants.HALF_PI, neckWidth, true);
+        return [neckLeft, headLeft, headPnt, headRight, neckRight];
+    }
+
     function getArrowBodyPoints(points, neckLeft, neckRight, tailWidthFactor) {
         var allLen = PlotUtils.wholeDistance(points);
         var len = PlotUtils.getBaseLength(points);
@@ -457,6 +524,99 @@
         }
         return leftBodyPnts.concat(rightBodyPnts);
     };
+
+    /**
+     * 面状三点尖单箭头 绘制函数
+     * 
+     * @param {any} coordinates 
+     * @param {any} geometry 
+     * @returns 
+     */
+    function tailedAttackArrowDrawFn(coordinates, geometry) {
+        if (!geometry) {
+            geometry = new ol.geom.Polygon(null);
+        }
+        var count = coordinates.length;
+        console.log(count);
+        
+
+        if (count == 2) {
+            geometry.setCoordinates([coordinates]);
+            return geometry;
+        } else if(count == 3){
+            var pnts = coordinates;
+            var tailLeft = pnts[0];
+            var tailRight = pnts[1];
+            if (PlotUtils.isClockWise(pnts[0], pnts[1], pnts[2])) {
+                tailLeft = pnts[1];
+                tailRight = pnts[0];
+            }
+            var midTail = PlotUtils.mid(tailLeft, tailRight);
+            var bonePnts = [midTail].concat(pnts.slice(2));
+            var headPnts = getArrowHeadPoints(bonePnts, tailLeft, tailRight);
+            var neckLeft = headPnts[0];
+            var neckRight = headPnts[4];
+            var tailWidth = PlotUtils.distance(tailLeft, tailRight);
+            var allLen = PlotUtils.getBaseLength(bonePnts);
+            var len = allLen * ShapeConstants.tailedattackarrow.tailWidthFactor * ShapeConstants.tailedattackarrow.swallowTailFactor;
+            ShapeConstants.tailedattackarrow.swallowTailPnt = PlotUtils.getThirdPoint(bonePnts[1], bonePnts[0], 0, len, true);
+            var factor = tailWidth / allLen;
+            var bodyPnts = getArrowBodyPoints(bonePnts, neckLeft, neckRight, factor);
+            var count = bodyPnts.length;
+            var leftPnts = [tailLeft].concat(bodyPnts.slice(0, count / 2));
+            leftPnts.push(neckLeft);
+            var rightPnts = [tailRight].concat(bodyPnts.slice(count / 2, count));
+            rightPnts.push(neckRight);
+
+            leftPnts = PlotUtils.getQBSplinePoints(leftPnts);
+            rightPnts = PlotUtils.getQBSplinePoints(rightPnts);
+            geometry.setCoordinates([leftPnts.concat(headPnts, rightPnts.reverse(), [ShapeConstants.tailedattackarrow.swallowTailPnt, leftPnts[0]])]);
+            
+            return geometry;
+        }else {
+            this.finishDrawing();
+        }
+    }
+
+    function closedcurveDrawFn(coordinates, geometry) {
+        if (!geometry) {
+            geometry = new ol.geom.Polygon(null);
+        }
+
+        var count = coordinates.length;
+        if (count < 2) {
+            geometry.setCoordinates([coordinates]);            
+            return geometry;
+        }
+        if (count == 2) {
+            geometry.setCoordinates([coordinates]);
+            return geometry;
+        }
+        else {
+            coordinates.push(coordinates[0], coordinates[1]);
+            var normals = [];
+            for (var i = 0; i < count - 2; i++) {
+                var normalPoints = PlotUtils.getBisectorNormals(ShapeConstants.closedcurve.t, coordinates[i], coordinates[i + 1], coordinates[i + 2]);
+                normals = normals.concat(normalPoints);
+            }
+            var len = normals.length;
+            normals = [normals[len - 1]].concat(normals.slice(0, len - 1));
+
+            var pList = [];
+            for (i = 0; i < count - 2; i++) {
+                var pnt1 = coordinates[i];
+                var pnt2 = coordinates[i + 1];
+                pList.push(pnt1);
+                for (var i = 0; i <= Constants.FITTING_COUNT; i++) {
+                    var pnt = PlotUtils.getCubicValue(i / Constants.FITTING_COUNT, pnt1, normals[i * 2], normals[i * 2 + 1], pnt2);
+                    pList.push(pnt);
+                }
+                pList.push(pnt2);
+            }
+            geometry.setCoordinates([pList]);
+            return geometry;
+        }
+    }
 
     /**
      * 星形标绘形状 绘制函数
