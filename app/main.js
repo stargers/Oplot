@@ -6,7 +6,7 @@ define(function (require) {
 
     // Load library/vendor modules using
     // full IDs, like:
-    var ol = require('ol-debug');
+    var ol = require('openlayers');
     var Util = require('Util');
 
     //init map
