@@ -255,8 +255,6 @@
         a.click()
     }
 
-
-
     P.prototype.addInteraction = function (plotType) {
         var _state = this.state;
         var dblClickInteraction = null;
@@ -273,7 +271,7 @@
         console.log(_state.map.getInteractions());
         window.arr = _state.map.getInteractions()
 
-        //在编辑过程中,找到双击交互并禁用
+        //在编辑过程中,找到双击缩放交互并禁用
         _state.map.getInteractions().forEach(function (value) {
             if (value instanceof ol.interaction.DoubleClickZoom) {
                 !!value.setActive && value.setActive(false);
@@ -294,6 +292,7 @@
                 this.removeInteraction();
                 console.log('draw end', event);
             }
+            //执行drawend回调  TODO
             setTimeout(function () {
                 dblClickInteraction.setActive(true);
             }, 0);
